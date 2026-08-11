@@ -650,6 +650,3 @@ Deno.serve((req) => {
     // 5. Return handshake response immediately
     return response;
 });
-
-    return response;
-});
