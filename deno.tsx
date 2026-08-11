@@ -573,16 +573,30 @@ ${rows}
 `;
 }
 
-Deno.serve(async (req) => {
+Deno.serve((req) => {
+    // 1. Handle HTTP web pages first
     if (!shouldHandleWebSocket(req)) {
         return handleHttp(req);
     }
 
-    const { socket, response } = Deno.upgradeWebSocket(req);
+    // 2. Read headers BEFORE upgrading (fixes "Request closed")
+    const earlyData = getEarlyData(req);
+
+    // 3. Upgrade to WebSocket
+    let socket: WebSocket;
+    let response: Response;
+    try {
+        const upgraded = Deno.upgradeWebSocket(req);
+        socket = upgraded.socket;
+        response = upgraded.response;
+    } catch {
+        return new Response("WebSocket upgrade failed", { status: 400 });
+    }
+
+    // 4. Setup connection handlers
     let target: TargetConnection | null = null;
     let connecting: Promise<TargetConnection> | null = null;
     let queue: Promise<void> = Promise.resolve();
-    const earlyData = getEarlyData(req);
 
     const cleanup = () => {
         closeTarget(target);
@@ -632,6 +646,10 @@ Deno.serve(async (req) => {
         cleanup();
         closeSocket(socket);
     };
+
+    // 5. Return handshake response immediately
+    return response;
+});
 
     return response;
 });
